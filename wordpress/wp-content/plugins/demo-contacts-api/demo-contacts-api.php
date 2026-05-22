@@ -8,7 +8,8 @@
 
 defined('ABSPATH') || exit;
 
-define('DEMO_CONTACTS_API_URL', get_option('demo_contacts_api_url', 'http://localhost:8080'));
+// Prefer environment variable (Docker) over WP option over default
+define('DEMO_CONTACTS_API_URL', getenv('DEMO_CONTACTS_API_URL') ?: get_option('demo_contacts_api_url', 'http://localhost:8080'));
 define('DEMO_CONTACTS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 
 require_once DEMO_CONTACTS_PLUGIN_DIR . 'includes/class-api-client.php';

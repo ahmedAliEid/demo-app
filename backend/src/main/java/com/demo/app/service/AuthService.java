@@ -5,12 +5,17 @@ import com.demo.app.dto.LoginRequest;
 import com.demo.app.dto.LoginResponse;
 import com.demo.app.security.JwtTokenProvider;
 import com.demo.app.security.UserDetailsServiceImpl;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
 public class AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
     private final UserDetailsServiceImpl userDetailsService;
     private final JwtTokenProvider jwtTokenProvider;
@@ -28,7 +33,10 @@ public class AuthService {
         User user;
         try {
             user = (User) userDetailsService.loadUserByUsername(req.username());
+        } catch (UsernameNotFoundException e) {
+            throw new BadCredentialsException("Invalid username or password");
         } catch (Exception e) {
+            log.error("Unexpected error loading user '{}': {}", req.username(), e.getMessage(), e);
             throw new BadCredentialsException("Invalid username or password");
         }
         if (!passwordEncoder.matches(req.password(), user.getPassword())) {

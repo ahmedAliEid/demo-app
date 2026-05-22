@@ -32,8 +32,8 @@ management:
 
 logging:
   level:
-    com.demo.app: INFO
-    org.springframework.security: WARN
+    com.demo.app: DEBUG
+    org.springframework.security: DEBUG
   structured:
     format:
       console: ecs

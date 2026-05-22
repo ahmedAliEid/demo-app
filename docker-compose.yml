@@ -1,12 +1,12 @@
 services:
+
+  # ── PostgreSQL (Spring Boot database) ─────────────────────────────────────
   postgres:
     image: postgres:15-alpine
     environment:
       POSTGRES_DB: demo_contacts
       POSTGRES_USER: ${DB_USERNAME:-demo}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-demo_local}
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -14,6 +14,83 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - demo-net
+
+  # ── MySQL (WordPress database) ────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress_local
+      MYSQL_ROOT_PASSWORD: root_local
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "wordpress", "--password=wordpress_local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - demo-net
+
+  # ── Spring Boot Backend ───────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/demo_contacts
+      DB_USERNAME: ${DB_USERNAME:-demo}
+      DB_PASSWORD: ${DB_PASSWORD:-demo_local}
+      JWT_SECRET: ${JWT_SECRET:-demo-local-secret-change-in-production-32c}
+      JWT_EXPIRY_SECONDS: ${JWT_EXPIRY_SECONDS:-1800}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+    networks:
+      - demo-net
+
+  # ── WordPress Frontend ────────────────────────────────────────────────────
+  wordpress:
+    image: wordpress:6.4-php8.1-apache
+    environment:
+      WORDPRESS_DB_HOST: mysql:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress_local
+      WORDPRESS_TABLE_PREFIX: wp_
+      DEMO_CONTACTS_API_URL: http://backend:8080
+      # Disable debug output in production-like envs
+      WORDPRESS_DEBUG: 0
+    ports:
+      - "8888:80"
+    volumes:
+      - ./wordpress/wp-content/plugins/demo-contacts-api:/var/www/html/wp-content/plugins/demo-contacts-api
+      - ./wordpress/wp-content/themes/contacts-child:/var/www/html/wp-content/themes/contacts-child
+      - wordpress_data:/var/www/html
+    depends_on:
+      mysql:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    networks:
+      - demo-net
+
+networks:
+  demo-net:
+    driver: bridge
 
 volumes:
   postgres_data:
+  mysql_data:
+  wordpress_data:

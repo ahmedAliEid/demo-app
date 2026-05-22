@@ -1,51 +1,7 @@
 <!-- wp:template-part {"slug":"header"} /-->
 <!-- wp:group {"tagName":"main","className":"demo-contacts-wrap"} -->
 <main class="wp-block-group demo-contacts-wrap">
-<!-- wp:html -->
-<?php
-if (!defined('ABSPATH')) exit;
-require_once WP_PLUGIN_DIR . '/demo-contacts-api/includes/class-api-client.php';
-require_once WP_PLUGIN_DIR . '/demo-contacts-api/includes/class-auth-handler.php';
-
-if (Demo_Contacts_Auth_Handler::is_authenticated()) {
-    wp_redirect(home_url('/contacts'));
-    exit;
-}
-
-$error = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!isset($_POST['_wpnonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['_wpnonce'])), 'demo_login')) {
-        $error = 'Security check failed. Please try again.';
-    } else {
-        $username = sanitize_text_field(wp_unslash($_POST['username'] ?? ''));
-        $password = $_POST['password'] ?? '';
-        $result   = Demo_Contacts_Auth_Handler::login($username, $password);
-        if ($result === true) {
-            wp_redirect(home_url('/contacts'));
-            exit;
-        }
-        $error = 'Invalid username or password.';
-    }
-}
-?>
-<div class="demo-login-form">
-    <h2><?php echo esc_html(get_bloginfo('name')); ?> — Login</h2>
-    <?php if ($error): ?>
-        <div class="demo-notice-error"><?php echo esc_html($error); ?></div>
-    <?php endif; ?>
-    <?php if (isset($_GET['expired'])): ?>
-        <div class="demo-notice-error">Your session has expired. Please log in again.</div>
-    <?php endif; ?>
-    <form method="post">
-        <?php wp_nonce_field('demo_login'); ?>
-        <label for="username">Username</label>
-        <input type="text" id="username" name="username" required autocomplete="username">
-        <label for="password">Password</label>
-        <input type="password" id="password" name="password" required autocomplete="current-password">
-        <button type="submit">Log In</button>
-    </form>
-</div>
-<!-- /wp:html -->
+<!-- wp:shortcode -->[demo_login_page]<!-- /wp:shortcode -->
 </main>
 <!-- /wp:group -->
 <!-- wp:template-part {"slug":"footer"} /-->

@@ -1,42 +1,7 @@
 <!-- wp:template-part {"slug":"header"} /-->
 <!-- wp:group {"tagName":"main","className":"demo-contacts-wrap"} -->
 <main class="wp-block-group demo-contacts-wrap">
-<!-- wp:html -->
-<?php
-if (!defined('ABSPATH')) exit;
-require_once WP_PLUGIN_DIR . '/demo-contacts-api/includes/class-api-client.php';
-require_once WP_PLUGIN_DIR . '/demo-contacts-api/includes/class-auth-handler.php';
-require_once WP_PLUGIN_DIR . '/demo-contacts-api/includes/class-contact-handler.php';
-
-Demo_Contacts_Auth_Handler::require_auth();
-
-$id = intval($_GET['id'] ?? 0);
-if ($id <= 0) {
-    wp_redirect(home_url('/contacts'));
-    exit;
-}
-
-$handler = new Demo_Contacts_Contact_Handler();
-$contact = $handler->get_contact($id);
-?>
-<?php if (is_wp_error($contact)): ?>
-    <div class="demo-notice-error"><?php echo esc_html($contact->get_error_message()); ?></div>
-    <p><a href="<?php echo esc_url(home_url('/contacts')); ?>">&larr; Back to contacts</a></p>
-<?php else: ?>
-    <h1><?php echo esc_html($contact['fullName']); ?></h1>
-    <p><a href="<?php echo esc_url(home_url('/contacts')); ?>">&larr; Back to contacts</a>
-    &nbsp;|&nbsp;
-    <a href="<?php echo esc_url(home_url('/edit-contact?id=' . $id)); ?>">Edit</a></p>
-    <table>
-        <tr><th>Street</th><td><?php echo esc_html($contact['streetLine1']); ?><?php if (!empty($contact['streetLine2'])): ?>, <?php echo esc_html($contact['streetLine2']); ?><?php endif; ?></td></tr>
-        <tr><th>City</th><td><?php echo esc_html($contact['city']); ?></td></tr>
-        <?php if (!empty($contact['stateProvince'])): ?><tr><th>State / Province</th><td><?php echo esc_html($contact['stateProvince']); ?></td></tr><?php endif; ?>
-        <?php if (!empty($contact['postalCode'])): ?><tr><th>Postal Code</th><td><?php echo esc_html($contact['postalCode']); ?></td></tr><?php endif; ?>
-        <tr><th>Country</th><td><?php echo esc_html($contact['country']); ?></td></tr>
-        <?php if (!empty($contact['phone'])): ?><tr><th>Phone</th><td><?php echo esc_html($contact['phone']); ?></td></tr><?php endif; ?>
-    </table>
-<?php endif; ?>
-<!-- /wp:html -->
+<!-- wp:shortcode -->[demo_contact_detail]<!-- /wp:shortcode -->
 </main>
 <!-- /wp:group -->
 <!-- wp:template-part {"slug":"footer"} /-->

@@ -42,3 +42,27 @@ yarn-error.log
 # Logs
 *.log
 logs/
+
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/
+backend/.mvn/
+
+# WordPress / PHP
+wordpress/wp-config.php
+wordpress/wp-content/uploads/
+wordpress/wp-content/upgrade/
+wordpress/wp-content/cache/
+wordpress/vendor/
+wordpress/wp-content/plugins/demo-contacts-api/vendor/
+
+# Docker
+.docker/
+
+# Test artifacts
+*.exec
+jacoco.exec

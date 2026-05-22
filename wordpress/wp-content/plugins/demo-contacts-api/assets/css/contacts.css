@@ -1,0 +1,9 @@
+/* Demo Contacts API plugin styles — minimal, defers to theme */
+.demo-contacts-wrap a.button {
+    display: inline-block;
+    padding: .45rem 1rem;
+    background: #0073aa;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 4px;
+}

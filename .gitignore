@@ -52,13 +52,15 @@ target/
 .mvn/
 backend/.mvn/
 
-# WordPress / PHP
-wordpress/wp-config.php
-wordpress/wp-content/uploads/
-wordpress/wp-content/upgrade/
-wordpress/wp-content/cache/
-wordpress/vendor/
-wordpress/wp-content/plugins/demo-contacts-api/vendor/
+# Laravel / PHP (frontend/)
+/frontend/vendor/
+/frontend/node_modules/
+/frontend/bootstrap/cache/*
+/frontend/storage/framework/cache/data/*
+/frontend/storage/framework/sessions/*
+/frontend/storage/framework/views/*
+/frontend/storage/logs/*
+/frontend/.env
 
 # Docker
 .docker/

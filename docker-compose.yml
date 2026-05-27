@@ -17,24 +17,6 @@ services:
     networks:
       - demo-net
 
-  # ── MySQL (WordPress database) ────────────────────────────────────────────
-  mysql:
-    image: mysql:8.0
-    environment:
-      MYSQL_DATABASE: wordpress
-      MYSQL_USER: wordpress
-      MYSQL_PASSWORD: wordpress_local
-      MYSQL_ROOT_PASSWORD: root_local
-    volumes:
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "wordpress", "--password=wordpress_local"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - demo-net
-
   # ── Spring Boot Backend ───────────────────────────────────────────────────
   backend:
     build:
@@ -60,31 +42,47 @@ services:
     networks:
       - demo-net
 
-  # ── WordPress Frontend ────────────────────────────────────────────────────
-  wordpress:
-    image: wordpress:6.4-php8.1-apache
+  # ── Laravel Frontend ──────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     environment:
-      WORDPRESS_DB_HOST: mysql:3306
-      WORDPRESS_DB_NAME: wordpress
-      WORDPRESS_DB_USER: wordpress
-      WORDPRESS_DB_PASSWORD: wordpress_local
-      WORDPRESS_TABLE_PREFIX: wp_
-      DEMO_CONTACTS_API_URL: http://backend:8080
-      # Disable debug output in production-like envs
-      WORDPRESS_DEBUG: 0
-    ports:
-      - "8888:80"
+      APP_KEY: ${APP_KEY}
+      APP_URL: ${APP_URL:-http://localhost:8888}
+      APP_ENV: ${APP_ENV:-local}
+      BACKEND_URL: http://backend:8080
+      SESSION_LIFETIME: ${SESSION_LIFETIME:-30}
+      LOG_CHANNEL: stderr
     volumes:
-      - ./wordpress/wp-content/plugins/demo-contacts-api:/var/www/html/wp-content/plugins/demo-contacts-api
-      - ./wordpress/wp-content/themes/contacts-child:/var/www/html/wp-content/themes/contacts-child
-      - wordpress_data:/var/www/html
+      - ./frontend:/var/www/html
     depends_on:
-      mysql:
-        condition: service_healthy
       backend:
         condition: service_healthy
     networks:
       - demo-net
+    healthcheck:
+      test: ["CMD-SHELL", "php artisan tinker --execute='echo 1;' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8888:80"
+    volumes:
+      - ./frontend/public:/var/www/html/public:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+    networks:
+      - demo-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
 networks:
   demo-net:
@@ -92,5 +90,3 @@ networks:
 
 volumes:
   postgres_data:
-  mysql_data:
-  wordpress_data:

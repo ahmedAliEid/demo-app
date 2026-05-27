@@ -8,9 +8,9 @@
     <link rel="stylesheet" href="{{ asset('css/app.css') }}">
 </head>
 <body>
-    <div class="demo-contacts-wrap">
+    <div class="demo-header">
         <header>
-            <nav>
+            <nav class="demo-nav">
                 <a href="{{ route('contacts.index') }}" class="demo-logo">Demo App</a>
                 @auth
                     @if(session('role'))
@@ -23,7 +23,9 @@
                 @endauth
             </nav>
         </header>
+    </div>
 
+    <div class="demo-contacts-wrap">
         <main>
             @yield('content')
         </main>

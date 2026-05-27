@@ -1,6 +1,6 @@
 # Demo Contacts App — Operator & User Guide
 
-**Version**: 1.0 | **Feature**: Login & Contact Address Management | **Date**: 2026-05-22
+**Version**: 2.0 | **Last Updated**: 2026-05-24 | **Change**: WordPress UI replaced by Laravel PHP (ADR-008)
 
 ---
 
@@ -16,17 +16,32 @@ The Demo Contacts App is a two-layer internal web application for managing conta
                              │  HTTP (port 8888)
                              ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                     WORDPRESS FRONTEND                                  │
-│                  (PHP 8.1 · WordPress 6.4)                              │
+│                        NGINX REVERSE PROXY                              │
+│                         (port 8888 → 9000)                              │
+└────────────────────────────┬────────────────────────────────────────────┘
+                             │  FastCGI (port 9000)
+                             ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     LARAVEL PHP FRONTEND                                │
+│                  (PHP 8.2 · Laravel 11 · PHP-FPM)                       │
 │                                                                         │
 │   ┌──────────────────────┐    ┌──────────────────────────────────────┐  │
-│   │  contacts-child theme│    │    demo-contacts-api plugin          │  │
-│   │  ├─ login.html       │    │    ├─ class-api-client.php           │  │
-│   │  ├─ contacts-list    │    │    ├─ class-auth-handler.php         │  │
-│   │  ├─ contact-detail   │    │    └─ class-contact-handler.php      │  │
-│   │  └─ contact-form     │    └──────────────┬───────────────────────┘  │
-│   └──────────────────────┘                   │                          │
-└──────────────────────────────────────────────┼──────────────────────────┘
+│   │  routes/web.php      │    │    app/Http/Controllers/             │  │
+│   │  ├─ GET  /login      │    │    ├─ AuthController.php             │  │
+│   │  ├─ POST /login      │    │    ├─ ContactController.php          │  │
+│   │  ├─ POST /logout     │    │    └─ AddressController.php          │  │
+│   │  ├─ GET  /contacts   │    └──────────────────────────────────────┘  │
+│   │  ├─ GET  /contacts/  │    ┌──────────────────────────────────────┐  │
+│   │  │       {id}        │    │    app/Services/                     │  │
+│   │  └─ ...              │    │    └─ ApiClient.php (Http facade)    │  │
+│   └──────────────────────┘    └──────────────┬───────────────────────┘  │
+│                                              │                          │
+│   resources/views/ (Blade)                   │                          │
+│   ├─ auth/login.blade.php                    │                          │
+│   ├─ contacts/index.blade.php                │                          │
+│   ├─ contacts/show.blade.php                 │                          │
+│   └─ contacts/form.blade.php                 │                          │
+└─────────────────────────────────────────────────────────────────────────┘
                                                │  HTTP REST (port 8080)
                                                │  Bearer JWT
                                                ▼
@@ -43,7 +58,6 @@ The Demo Contacts App is a two-layer internal web application for managing conta
 │            │            │  GET  /filter-   │                            │
 │            │            │       options    │                            │
 │            │            └────────┬─────────┘                            │
-│            │                     │                                      │
 │   ┌────────▼─────────────────────▼──────────────────────────────────┐  │
 │   │              Service Layer + JPA Repository                      │  │
 │   │              Flyway DB Migrations (V1–V3)                        │  │
@@ -57,12 +71,6 @@ The Demo Contacts App is a two-layer internal web application for managing conta
 │                    Tables: users · contacts · addresses                 │
 └─────────────────────────────────────────────────────────────────────────┘
 
-                         ┌───────────────────────────┐
-                         │  MYSQL 8.0 DATABASE        │
-                         │  DB: wordpress             │
-                         │  (WordPress CMS data only) │
-                         └───────────────────────────┘
-
          ── Phase 2 (future) ──────────────────────────────────────────
               Spring Boot → Kafka → Consumer Services
          ─────────────────────────────────────────────────────────────
@@ -72,13 +80,14 @@ The Demo Contacts App is a two-layer internal web application for managing conta
 
 ## Service URLs
 
-| Service | URL | Notes |
-|---------|-----|-------|
-| WordPress frontend | `http://localhost:8888` | Main UI entry point |
-| Spring Boot API | `http://localhost:8080` | REST API base |
-| API docs (Swagger UI) | `http://localhost:8080/api/docs` | Interactive API explorer |
-| Health check | `http://localhost:8080/actuator/health` | Returns `{"status":"UP"}` |
-| Metrics (Prometheus) | `http://localhost:8080/actuator/prometheus` | Scrape endpoint |
+| Service              | URL                                     | Notes                          |
+|----------------------|-----------------------------------------|--------------------------------|
+| Laravel frontend     | `http://localhost:8888`                 | Main UI entry point            |
+| Spring Boot API      | `http://localhost:8080`                 | REST API base                  |
+| API docs (Swagger)   | `http://localhost:8080/api/docs`        | Interactive API explorer       |
+| API health check     | `http://localhost:8080/actuator/health` | Returns `{"status":"UP"}`      |
+| PHP health check     | `http://localhost:8888/health`          | Returns HTTP 200               |
+| Metrics (Prometheus) | `http://localhost:8080/actuator/prometheus` | Scrape endpoint           |
 
 ---
 
@@ -90,12 +99,12 @@ The fastest way to run the full stack locally.
 # 1. Clone the repo and switch to the feature branch
 git clone https://github.com/ahmedAliEid/demo-app.git
 cd demo-app
-git checkout 001-wordpress-java-kafka
+git checkout 002-php-frontend-migration
 
 # 2. Copy and configure environment variables
-cp .env.example .env           # edit DB_PASSWORD and JWT_SECRET before use
+cp .env.example .env           # edit DB_PASSWORD, JWT_SECRET, and APP_KEY before use
 
-# 3. Start all services (PostgreSQL · MySQL · Spring Boot · WordPress)
+# 3. Start all services (PostgreSQL · Spring Boot · PHP-FPM · Nginx)
 docker compose up -d
 
 # 4. Wait for health checks (≈ 60 s on first run)
@@ -105,20 +114,35 @@ docker compose ps              # all services should show "healthy"
 open http://localhost:8888
 ```
 
-> **JWT_SECRET** must be at least 32 characters. Never commit `.env` to git.
+> **JWT_SECRET** must be at least 32 characters.
+> **APP_KEY** must be a valid Laravel key: run `php artisan key:generate` or set `base64:<random-32-bytes>`.
+> Never commit `.env` to git.
 
 ---
 
 ## Environment Variables
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DB_URL` | Yes | — | JDBC URL: `jdbc:postgresql://postgres:5432/demo_contacts` |
-| `DB_USERNAME` | Yes | `demo` | PostgreSQL username |
-| `DB_PASSWORD` | Yes | `demo_local` | PostgreSQL password |
-| `JWT_SECRET` | Yes | `demo-local-…` | HMAC-SHA256 signing key, min 32 chars |
-| `JWT_EXPIRY_SECONDS` | No | `1800` | Session lifetime in seconds (30 min) |
-| `SPRING_PROFILES_ACTIVE` | No | — | Set to `test` to use H2 in-memory DB |
+### Spring Boot API
+
+| Variable               | Required | Default                   | Description                                     |
+|------------------------|----------|---------------------------|-------------------------------------------------|
+| `DB_URL`               | Yes      | —                         | JDBC URL: `jdbc:postgresql://postgres:5432/demo_contacts` |
+| `DB_USERNAME`          | Yes      | `demo`                    | PostgreSQL username                             |
+| `DB_PASSWORD`          | Yes      | `demo_local`              | PostgreSQL password                             |
+| `JWT_SECRET`           | Yes      | `demo-local-…`            | HMAC-SHA256 signing key, min 32 chars           |
+| `JWT_EXPIRY_SECONDS`   | No       | `1800`                    | Session lifetime in seconds (30 min)            |
+| `SPRING_PROFILES_ACTIVE` | No     | —                         | Set to `test` to use H2 in-memory DB            |
+
+### Laravel PHP Frontend
+
+| Variable       | Required | Default                     | Description                                          |
+|----------------|----------|-----------------------------|------------------------------------------------------|
+| `APP_KEY`      | Yes      | —                           | Laravel encryption key (`base64:<32-byte-string>`)   |
+| `APP_URL`      | Yes      | `http://localhost:8888`     | Public URL of the frontend                           |
+| `APP_ENV`      | No       | `local`                     | Environment: `local`, `staging`, `production`        |
+| `BACKEND_URL`  | Yes      | `http://backend:8080`       | Internal Docker URL of the Spring Boot API           |
+| `SESSION_LIFETIME` | No   | `30`                        | Session timeout in minutes                           |
+| `LOG_CHANNEL`  | No       | `stack`                     | Laravel log channel; use `stderr` in Docker          |
 
 ---
 
@@ -153,7 +177,7 @@ Content-Type: application/json
 POST http://localhost:8080/api/v1/auth/logout
 Authorization: Bearer <token>
 ```
-**Response 204** — Token is discarded client-side (stateless JWT).
+**Response 204** — Token is discarded server-side; Laravel session is cleared.
 
 ---
 
@@ -254,12 +278,12 @@ All other fields (Street Line 2, State/Province, Postal Code, Phone) are optiona
 
 ### Role Differences
 
-| Action | User | Admin |
-|--------|------|-------|
-| View own contacts | Yes | Yes |
-| View all contacts | No | Yes |
-| Edit own contacts | Yes | Yes |
-| Edit others' contacts | No | Yes |
+| Action                            | User | Admin |
+|-----------------------------------|------|-------|
+| View own contacts                 | Yes  | Yes   |
+| View all contacts                 | No   | Yes   |
+| Edit own contacts                 | Yes  | Yes   |
+| Edit others' contacts             | No   | Yes   |
 | See all cities/countries in filters | No (own scope) | Yes (all) |
 
 ---
@@ -273,7 +297,7 @@ There is no self-registration in Phase 1. Users must be seeded by an admin direc
 INSERT INTO users (username, password_hash, role)
 VALUES (
   'jsmith',
-  '$2a$12$<bcrypt-hash>',   -- generate: htpasswd -bnBC 12 "" yourpassword | tr -d ':\n' | sed 's/$apr1//'
+  '$2a$12$<bcrypt-hash>',   -- generate with the command below
   'user'                    -- or 'admin'
 );
 ```
@@ -288,7 +312,7 @@ docker run --rm httpd:alpine htpasswd -bnBC 12 "" yourpassword | tr -d ':\n'
 
 ## Running Tests
 
-### Backend
+### Backend (Spring Boot)
 
 ```bash
 cd backend
@@ -304,12 +328,22 @@ cd backend
 open target/site/jacoco/index.html
 ```
 
-### WordPress Plugin
+### PHP Frontend (Laravel)
 
 ```bash
-cd wordpress/wp-content/plugins/demo-contacts-api
+cd frontend
+
+# Install dependencies
 composer install
-./vendor/bin/phpunit tests/unit/
+
+# Run the full test suite (PHPUnit)
+php artisan test
+
+# Run with coverage (requires Xdebug or PCOV)
+php artisan test --coverage
+
+# Run a specific test class
+php artisan test --filter ContactControllerTest
 ```
 
 ---
@@ -321,7 +355,7 @@ If you prefer to run services directly instead of via Docker Compose:
 ### 1. Start PostgreSQL
 
 ```bash
-docker compose up -d postgres mysql
+docker compose up -d postgres
 ```
 
 ### 2. Run Spring Boot
@@ -338,46 +372,48 @@ export JWT_EXPIRY_SECONDS=1800
 
 Flyway migrations run automatically on startup — no manual SQL needed.
 
-### 3. Run WordPress
+### 3. Run Laravel PHP Frontend
 
 ```bash
-cd wordpress
+cd frontend
 composer install
-# Install WordPress if fresh:
-wp core download
-wp config create --dbname=wordpress --dbuser=wordpress --dbpass=wordpress_local --dbhost=localhost
-wp db create
-wp core install --url=http://localhost:8888 --title="Demo Contacts" \
-  --admin_user=wpadmin --admin_email=admin@example.com --admin_password=wp_admin_pass
-wp plugin activate demo-contacts-api
-wp theme activate contacts-child
-wp option set demo_contacts_api_url "http://localhost:8080"
-php -S localhost:8888
+cp .env.example .env
+php artisan key:generate        # sets APP_KEY in .env
+
+# Configure backend URL in .env:
+# BACKEND_URL=http://localhost:8080
+
+php artisan serve --port=8888
 ```
+
+For production-like local setup with PHP-FPM + Nginx, use the Docker Compose stack.
 
 ---
 
 ## Observability
 
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /actuator/health` | Liveness — confirm the app is up |
-| `GET /actuator/prometheus` | Prometheus metrics scrape endpoint |
+| Endpoint                          | Purpose                            |
+|-----------------------------------|------------------------------------|
+| `GET /actuator/health`            | Spring Boot liveness check         |
+| `GET /actuator/prometheus`        | Prometheus metrics scrape endpoint |
+| `GET /health`                     | Laravel PHP liveness check         |
 
-All requests log a trace ID in structured JSON (SLF4J). Filter logs by `traceId` to trace a single request through the system.
+All Spring Boot requests log a trace ID in structured JSON (SLF4J). Filter logs by `traceId` to trace a single request through the system. Laravel logs are written to `storage/logs/` (local) or `stderr` (Docker).
 
 ---
 
 ## Troubleshooting
 
-| Symptom | Likely Cause | Fix |
-|---------|-------------|-----|
-| `401 Unauthorized` on API | Token missing or expired | Log in again to get a fresh token |
-| `403 Forbidden` on contact | User trying to access another user's contact | Check the contact's owner; use admin account if needed |
-| `409 Conflict` on create | Duplicate full name in your scope | Use a different name |
-| WordPress shows blank page | Plugin or theme not activated | Run `wp plugin activate demo-contacts-api && wp theme activate contacts-child` |
-| Backend fails to start | PostgreSQL not ready | Run `docker compose up -d postgres` and wait for `healthy` status |
-| JWT_SECRET error on startup | Secret too short | Set `JWT_SECRET` to a string of at least 32 characters |
+| Symptom                             | Likely Cause                          | Fix                                                              |
+|-------------------------------------|---------------------------------------|------------------------------------------------------------------|
+| `401 Unauthorized` on API           | Token missing or expired              | Log in again to get a fresh token                                |
+| `403 Forbidden` on contact          | User accessing another user's contact | Check the contact's owner; use admin account if needed           |
+| `409 Conflict` on create            | Duplicate full name in your scope     | Use a different name                                             |
+| Laravel shows `500` error           | `APP_KEY` not set                     | Run `php artisan key:generate` or set `APP_KEY` in `.env`        |
+| Laravel shows `419` on form submit  | CSRF token mismatch                   | Clear browser cookies and reload; check session driver config    |
+| Backend fails to start              | PostgreSQL not ready                  | Run `docker compose up -d postgres` and wait for `healthy` status |
+| JWT_SECRET error on startup         | Secret too short                      | Set `JWT_SECRET` to a string of at least 32 characters           |
+| Frontend can't reach backend        | `BACKEND_URL` misconfigured           | In Docker: use `http://backend:8080`; local: `http://localhost:8080` |
 
 ---
 
@@ -385,25 +421,50 @@ All requests log a trace ID in structured JSON (SLF4J). Filter logs by `traceId`
 
 ```
 demo-app/
-├── docker-compose.yml          # Full local stack
-├── backend/                    # Spring Boot (Java 21 / Maven)
+├── docker-compose.yml              # Full local stack (Postgres · Spring Boot · PHP-FPM · Nginx)
+├── backend/                        # Spring Boot (Java 21 / Maven)
 │   ├── pom.xml
 │   └── src/main/java/com/demo/app/
-│       ├── controller/         # REST endpoints (Auth, Contact)
-│       ├── service/            # Business logic
-│       ├── security/           # JWT filter + UserDetailsService
-│       ├── domain/             # JPA entities (User, Contact, Address)
-│       ├── dto/                # Request/response objects
-│       └── exception/          # Global error handler
-├── wordpress/                  # WordPress installation
-│   └── wp-content/
-│       ├── themes/contacts-child/       # Block child theme + page templates
-│       └── plugins/demo-contacts-api/  # Spring Boot API integration plugin
-├── specs/001-login-contacts/
-│   ├── contracts/openapi.yaml  # Authoritative API contract
-│   ├── plan.md                 # Implementation plan
-│   ├── data-model.md           # Database schema
-│   └── quickstart.md           # Developer quickstart
+│       ├── controller/             # REST endpoints (Auth, Contact)
+│       ├── service/                # Business logic
+│       ├── security/               # JWT filter + UserDetailsService
+│       ├── domain/                 # JPA entities (User, Contact, Address)
+│       ├── dto/                    # Request/response objects
+│       └── exception/              # Global error handler
+├── frontend/                       # Laravel PHP (PHP 8.2 / Composer)
+│   ├── composer.json
+│   ├── artisan
+│   ├── app/
+│   │   ├── Http/
+│   │   │   ├── Controllers/        # AuthController, ContactController
+│   │   │   ├── Middleware/         # Authenticate, RedirectIfAuthenticated
+│   │   │   └── Requests/           # Form validation (Laravel Form Requests)
+│   │   └── Services/
+│   │       └── ApiClient.php       # Laravel Http facade wrapper for Spring Boot
+│   ├── resources/
+│   │   └── views/                  # Blade templates
+│   │       ├── auth/login.blade.php
+│   │       ├── contacts/index.blade.php
+│   │       ├── contacts/show.blade.php
+│   │       └── contacts/form.blade.php
+│   └── routes/
+│       └── web.php                 # All route definitions
+├── specs/
+│   ├── 001-login-contacts/
+│   │   ├── contracts/openapi.yaml  # Authoritative API contract
+│   │   ├── plan.md
+│   │   └── data-model.md
+│   └── 002-php-frontend-migration/
+│       └── spec.md
 └── docs/
-    └── GUIDE.md                # This file
+    ├── GUIDE.md                    # This file
+    └── adr/                        # Architecture Decision Records
+        ├── ADR-001-technology-stack.md        # Partially superseded by ADR-008
+        ├── ADR-002-layered-architecture.md
+        ├── ADR-003-api-first-design.md
+        ├── ADR-004-role-based-access-control.md
+        ├── ADR-005-duplicate-contact-name-policy.md
+        ├── ADR-006-session-timeout.md
+        ├── ADR-007-contact-search-and-filter.md
+        └── ADR-008-php-frontend-migration.md  # Supersedes ADR-001 WordPress decision
 ```

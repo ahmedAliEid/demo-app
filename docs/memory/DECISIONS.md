@@ -33,27 +33,47 @@ Active → Needs Review → Superseded → (pruned)
 
 ---
 
-## Template
+## 2026-05-24 — Laravel replaces WordPress as the Presentation layer
 
-### YYYY-MM-DD - Decision title
-
-**Status**
-Active | Superseded | Needs review
+**Status**: Active
 
 **Why this is durable**
-What cross-feature choice is likely to matter again?
+Every frontend feature touches the Presentation layer technology choice. The decision to
+use Laravel (not a CMS, not another micro-framework) shapes routing conventions, template
+patterns, HTTP client usage, and testing approaches across all Phase 1 and Phase 2 UI work.
 
 **Decision**
-What was decided and what boundary does it create?
+WordPress is removed. Laravel 11 (PHP 8.2+) is the sole Presentation layer framework.
+Blade templates render all views. Laravel's Http facade (with explicit timeouts and retry)
+is the only permitted way to call the Spring Boot REST API. No `wp_*` functions, hooks,
+or shortcodes remain anywhere in the codebase. See ADR-008 for full rationale.
 
 **Tradeoffs**
-What was gained, what was made harder, and when should this be reconsidered?
+Gained: clean MVC, strict-type PHP, reduced attack surface, no CMS overhead, standard
+`php artisan` developer tooling. Lost: existing WordPress templates and plugin code must
+be rewritten; Docker Compose service topology changes (no MySQL, PHP-FPM + Nginx replaces
+the WordPress container).
 
 **Future mistake prevented**
-What likely incorrect approach does this rule out?
+Do not add WordPress-specific patterns (plugin hooks, `functions.php`, WP REST API
+namespace, `admin-ajax.php`) to the codebase. This decision explicitly rules them out.
 
 **Evidence**
-Diff, tests, review, incident, or repeated implementation evidence.
+ADR-008 (2026-05-24). Constitution updated to v2.0.0 (2026-05-24).
 
 **Where to look next**
-Files, modules, or specs future maintainers should inspect.
+`docs/adr/ADR-008-php-frontend-migration.md`, `.specify/memory/constitution.md` (v2.0.0),
+`frontend/` directory (Laravel app root), `specs/002-php-frontend-migration/spec.md`.
+
+---
+
+## 2026-05-22 — WordPress chosen as Presentation layer (Superseded)
+
+**Status**: Superseded by "Laravel replaces WordPress as the Presentation layer" (2026-05-24)
+
+**Decision**
+WordPress 6.4 (PHP 8.1+) was the initial Presentation layer. All UI was delivered as
+a child theme + a custom plugin consuming the Spring Boot REST API.
+
+**Evidence**
+ADR-001 (2026-05-22), partially superseded annotation added 2026-05-24.

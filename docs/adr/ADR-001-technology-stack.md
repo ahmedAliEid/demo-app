@@ -1,7 +1,7 @@
 # ADR-001: Technology Stack — WordPress, Java Spring Boot, Apache Kafka
 
 **Date**: 2026-05-22
-**Status**: Accepted
+**Status**: Partially Superseded — UI layer decision superseded by ADR-008 (2026-05-24)
 
 ## Context
 
@@ -13,9 +13,10 @@ backend services.
 
 ## Decision
 
-- **UI Layer**: WordPress (PHP 8.1+, WordPress 6.4+). Handles all rendering,
-  theming, and end-user interaction. Consumes the Spring Boot REST API; stores
-  no business data itself.
+- **UI Layer**: ~~WordPress (PHP 8.1+, WordPress 6.4+)~~ **Superseded by ADR-008**.
+  Laravel 11 (PHP 8.2+) replaces WordPress as the Presentation layer. Handles all
+  rendering, routing, and end-user interaction. Consumes the Spring Boot REST API;
+  stores no business data itself.
 - **Backend Layer**: Java Spring Boot 3.x on Java 21 (LTS). Owns all business
   logic, data persistence, and REST API exposure.
 - **Messaging Layer**: Apache Kafka 3.x (Phase 2). Manages all asynchronous,

@@ -1,6 +1,6 @@
 # Security Constitution
 
-**Version**: 1.0 | **Created**: 2026-05-21
+**Version**: 1.1 | **Created**: 2026-05-21 | **Last Amended**: 2026-05-24 | **Change**: Auth mechanism corrected from API Key to JWT Bearer; Laravel-specific CSRF and session rules added
 
 ---
 
@@ -20,16 +20,18 @@
 
 ## 2. Authentication & Authorization Standards
 
-- **Mechanism**: API Key authentication.
-  - Keys must be passed via HTTP header (e.g., `Authorization: Bearer <key>` or `X-API-Key: <key>`). Never accept keys in query strings or request bodies.
-  - Keys must be validated server-side on every request — no client-side trust.
-  - Keys must be stored hashed (e.g., SHA-256) in the database; the plaintext key is shown only once at creation.
-  - Implement key expiry and rotation support.
-- **Roles**: Simple Admin / User RBAC.
-  - Every endpoint must declare its minimum required role.
-  - Authorization checks must happen server-side, never rely on client-supplied role claims.
+- **Mechanism**: JWT Bearer authentication (HMAC-SHA256 signed, Spring Boot issues tokens).
+  - Tokens passed via `Authorization: Bearer <jwt>` header on all Spring Boot API calls. Never in query strings, request bodies, or HTML output.
+  - Tokens validated server-side on every request by the Spring Boot JWT filter chain.
+  - Tokens are stateless; revocation is by expiry only (default 30 min, `JWT_EXPIRY_SECONDS`).
+  - `JWT_SECRET` must be at least 32 characters; must be injected via environment variable; never hardcoded.
+- **Laravel session**: The JWT token is stored in the Laravel server-side session only (`session('token')`). It MUST NOT be exposed to browser JavaScript, HTML, or cookies.
+- **CSRF**: Laravel's `VerifyCsrfToken` middleware is active on all `web` routes. All Blade forms must include `@csrf`. State-changing routes MUST NOT disable CSRF protection.
+- **Roles**: Admin / User RBAC. Two roles only in Phase 1.
+  - Every Spring Boot endpoint must declare its minimum required role via Spring Security configuration.
+  - Authorization checks happen at the Spring Boot API layer only. The PHP frontend MUST NOT make role-based data decisions independently.
   - Admin-only routes must be explicitly guarded — fail closed (deny by default).
-- **Failure**: On auth failure, return `401 Unauthorized` or `403 Forbidden`. Never expose why authentication failed (e.g., "key not found" vs "key expired").
+- **Failure**: On auth failure, return `401 Unauthorized` or `403 Forbidden`. Never expose why authentication failed (e.g., "token expired" vs "token invalid"). Return generic problem-detail responses only.
 
 ---
 

@@ -1,0 +1,498 @@
+openapi: "3.1.0"
+
+info:
+  title: Demo Contacts API
+  description: |
+    REST API for the Login & Contact Address Management feature.
+    WordPress frontend consumes this API exclusively.
+    All protected endpoints require a valid Bearer JWT token.
+  version: "1.0.0"
+  contact:
+    name: Demo App Team
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://api.demo-app.internal
+    description: Staging
+
+tags:
+  - name: auth
+    description: Authentication — login and logout
+  - name: contacts
+    description: Contact address CRUD
+  - name: system
+    description: Health and observability
+
+paths:
+
+  /api/v1/auth/login:
+    post:
+      tags: [auth]
+      summary: Authenticate user and receive a JWT
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              username: jsmith
+              password: s3cr3t!
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+              example:
+                type: about:blank
+                title: Unauthorized
+                status: 401
+                detail: Invalid username or password
+        '422':
+          description: Validation error (missing fields)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblemDetail'
+
+  /api/v1/auth/logout:
+    post:
+      tags: [auth]
+      summary: Invalidate the current session (client-side token discard)
+      operationId: logout
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Logged out successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/contacts:
+    get:
+      tags: [contacts]
+      summary: List contacts (paginated, filtered)
+      description: |
+        Returns contacts visible to the authenticated user.
+        - Admin: all contacts across all users
+        - User: only contacts they created
+        Supports name text search and city/country filter dropdowns.
+      operationId: listContacts
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: name
+          in: query
+          description: Case-insensitive substring match on contact full name
+          required: false
+          schema:
+            type: string
+            maxLength: 255
+        - name: city
+          in: query
+          description: Exact match on address city (case-insensitive)
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+        - name: country
+          in: query
+          description: Exact match on address country (case-insensitive)
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+        - name: page
+          in: query
+          description: Zero-based page number
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          description: Number of results per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Paginated list of contacts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedContactSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [contacts]
+      summary: Create a new contact
+      operationId: createContact
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactRequest'
+      responses:
+        '201':
+          description: Contact created
+          headers:
+            Location:
+              description: URL of the newly created contact
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Duplicate contact name within visible scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+              example:
+                type: about:blank
+                title: Conflict
+                status: 409
+                detail: "A contact named 'John Smith' already exists"
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblemDetail'
+
+  /api/v1/contacts/{id}:
+    get:
+      tags: [contacts]
+      summary: Get full details of a contact
+      operationId: getContact
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ContactId'
+      responses:
+        '200':
+          description: Contact detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [contacts]
+      summary: Update an existing contact
+      description: |
+        Full replacement of contact name and address fields.
+        - User: may only update contacts they own
+        - Admin: may update any contact
+      operationId: updateContact
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ContactId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactRequest'
+      responses:
+        '200':
+          description: Contact updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Duplicate contact name within visible scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationProblemDetail'
+
+  /api/v1/contacts/filter-options:
+    get:
+      tags: [contacts]
+      summary: Get distinct city and country values for filter dropdowns
+      operationId: getFilterOptions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Available filter values scoped to authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FilterOptions'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /actuator/health:
+    get:
+      tags: [system]
+      summary: Service health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: UP
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ContactId:
+      name: id
+      in: path
+      required: true
+      description: Contact identifier
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid JWT token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    Forbidden:
+      description: Authenticated user does not have permission to access this resource
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+    NotFound:
+      description: Contact not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetail'
+
+  schemas:
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 100
+        password:
+          type: string
+          minLength: 1
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT Bearer token; expires after 30 minutes of inactivity
+        expiresIn:
+          type: integer
+          description: Token TTL in seconds
+          example: 1800
+        role:
+          type: string
+          enum: [admin, user]
+
+    ContactRequest:
+      type: object
+      required: [fullName, streetLine1, city, country]
+      properties:
+        fullName:
+          type: string
+          minLength: 1
+          maxLength: 255
+        streetLine1:
+          type: string
+          minLength: 1
+          maxLength: 255
+        streetLine2:
+          type: string
+          maxLength: 255
+          nullable: true
+        city:
+          type: string
+          minLength: 1
+          maxLength: 100
+        stateProvince:
+          type: string
+          maxLength: 100
+          nullable: true
+        postalCode:
+          type: string
+          maxLength: 20
+          nullable: true
+        country:
+          type: string
+          minLength: 1
+          maxLength: 100
+        phone:
+          type: string
+          maxLength: 50
+          nullable: true
+
+    ContactSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        fullName:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+
+    ContactResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        fullName:
+          type: string
+        streetLine1:
+          type: string
+        streetLine2:
+          type: string
+          nullable: true
+        city:
+          type: string
+        stateProvince:
+          type: string
+          nullable: true
+        postalCode:
+          type: string
+          nullable: true
+        country:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PagedContactSummary:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactSummary'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+
+    FilterOptions:
+      type: object
+      properties:
+        cities:
+          type: array
+          items:
+            type: string
+          description: Distinct city values visible to the current user
+        countries:
+          type: array
+          items:
+            type: string
+          description: Distinct country values visible to the current user
+
+    ProblemDetail:
+      type: object
+      description: RFC 7807 Problem Detail
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri
+
+    ValidationProblemDetail:
+      allOf:
+        - $ref: '#/components/schemas/ProblemDetail'
+        - type: object
+          properties:
+            errors:
+              type: object
+              additionalProperties:
+                type: string
+              description: Field name → validation error message map
+              example:
+                fullName: "must not be blank"
+                country: "must not be blank"

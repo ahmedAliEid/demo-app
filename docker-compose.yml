@@ -1,0 +1,92 @@
+services:
+
+  # ── PostgreSQL (Spring Boot database) ─────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: demo_contacts
+      POSTGRES_USER: ${DB_USERNAME:-demo}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-demo_local}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-demo} -d demo_contacts"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - demo-net
+
+  # ── Spring Boot Backend ───────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/demo_contacts
+      DB_USERNAME: ${DB_USERNAME:-demo}
+      DB_PASSWORD: ${DB_PASSWORD:-demo_local}
+      JWT_SECRET: ${JWT_SECRET:-demo-local-secret-change-in-production-32c}
+      JWT_EXPIRY_SECONDS: ${JWT_EXPIRY_SECONDS:-1800}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 45s
+    networks:
+      - demo-net
+
+  # ── Laravel Frontend ──────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      APP_KEY: ${APP_KEY}
+      APP_URL: ${APP_URL:-http://localhost:8888}
+      APP_ENV: ${APP_ENV:-local}
+      BACKEND_URL: http://backend:8080
+      SESSION_LIFETIME: ${SESSION_LIFETIME:-30}
+      LOG_CHANNEL: stderr
+    volumes:
+      - ./frontend:/var/www/html
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - demo-net
+    healthcheck:
+      test: ["CMD-SHELL", "php artisan tinker --execute='echo 1;' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8888:80"
+    volumes:
+      - ./frontend/public:/var/www/html/public:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+    networks:
+      - demo-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  demo-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
